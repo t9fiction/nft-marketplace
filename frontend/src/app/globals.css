@@ -1,0 +1,29 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* Light mode variables */
+:root {
+  --color-primary: #141726;      
+  --color-secondary: #09242b;    
+  --color-main: #1f2937;        
+  --color-background: #b81d1d;  
+  --color-foreground: #191919;  
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #0EB39E;     
+    --color-secondary: #ADF0DD;   
+    --color-main: #0868c9;        
+    --color-background: #101B20;  
+    --color-foreground: #B6ECF7;  
+  }
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: 'Inter', sans-serif;
+}
