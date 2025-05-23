@@ -13,10 +13,10 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { name: "Explore NFTs", path: "/" },
-  { name: "Listed NFTs", path: "/listed" },
-  { name: "My NFTs", path: "/mynfts" },
-  { name: "Bridge", path: "/bridge" },
+  { name: "Home", path: "/" },
+  { name: "Dashboard", path: "/dashboard" },
+  { name: "Create", path: "/create-item" },
+  { name: "My NFTS", path: "/my-nfts" },
 ];
 
 const Navbar: React.FC = () => {
@@ -92,7 +92,7 @@ const Navbar: React.FC = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center space-x-6">
+        <div className="hidden md:flex items-center fixed justify-center left-0 right-0 space-x-6">
           {menuItems.map((item) => (
             <Link
               key={item.name}
@@ -109,7 +109,7 @@ const Navbar: React.FC = () => {
 
         {/* Right Section - Desktop */}
         <div className="hidden md:flex items-center gap-4">
-          <div className="rounded-lg text-white uppercase tracking-[10px] font-poppins font-extralight text-sm px-2 py-2 transition-all">
+          <div className="rounded-lg fixed right-2 text-white uppercase tracking-[10px] font-poppins font-extralight text-sm px-2 py-2 transition-all ">
             <ConnectButton client={client} />
           </div>
         </div>
