@@ -29,7 +29,7 @@ export default function RootLayout({
           <ThirdwebProvider>
             <div className="relative">
               <Navbar />
-              <div className="md:mt-24">{children}</div>
+              <div className="md:mt-24 px-6">{children}</div>
               <Footer />
             </div>
           </ThirdwebProvider>
