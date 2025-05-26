@@ -2,9 +2,8 @@
 // Learn more about it at https://hardhat.org/ignition
 
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
-import { Contract } from "ethers"; // Assuming ethers is used for contract types
 
-const nftMarket: string = '0x3262cfa622821B98D5C727f95583383cdEf61309';
+const nftMarket: string = '0x3c516081d292745C26566347bD3d6D6C3d324075';
 
 const NFTModule = buildModule("NFTModule", (m) => {
   const contractAddress = m.getParameter("contractAddress", nftMarket);
