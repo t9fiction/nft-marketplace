@@ -60,7 +60,7 @@ const Footer: FC = () => {
   ];
 
   return (
-    <footer className="bg-main/5 backdrop-blur-sm border-t border-primary/20 mt-auto">
+    <footer className="bg-main/5 bg-background backdrop-blur-sm border-t border-primary/20 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand Section */}

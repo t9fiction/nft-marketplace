@@ -252,7 +252,10 @@ const CreateItem = () => {
         throw new Error("Could not retrieve token ID from mint transaction");
       }
 
-      const tokenId = eventData[0].args.tokenId.toString();
+      let length = eventData.length - 1; // Get the last event
+      console.log("Event data length:", length);
+
+      const tokenId = eventData[length].args.tokenId.toString();
       console.log("Token ID:", tokenId);
 
       setStatus("NFT minted! Listing on marketplace...");
