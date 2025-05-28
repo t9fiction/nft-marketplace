@@ -14,6 +14,7 @@ import {
   useActiveWallet,
   useSendAndConfirmTransaction,
 } from "thirdweb/react";
+import Swal from "sweetalert2";
 
 // Move interface outside component and include all properties
 interface NFTItem {
@@ -167,12 +168,27 @@ export default function Home() {
     }
   }
 
+
   function buyOnClick(nft: NFTItem) {
     if (!activeAccount) {
-      alert("Please connect your wallet first");
+      Swal.fire({
+        title: "Wallet Not Connected",
+        text: "Please connect your wallet to purchase this NFT.",
+        icon: "error",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#f87171", // Matches text-red-400
+        background: "rgba(255, 255, 255, 0.1)", // Matches bg-main/10
+        backdrop: "rgba(0, 0, 0, 0.8)",
+        customClass: {
+          title: "text-foreground font-poppins text-2xl font-bold",
+          htmlContainer: "text-foreground/70 font-inter text-lg",
+          popup: "backdrop-blur-lg rounded-2xl border border-primary/20",
+          confirmButton: "bg-red-400 text-white font-poppins rounded-xl px-6 py-2",
+        },
+      });
       return;
     }
-
+  
     const transaction = prepareContractCall({
       contract: NFTMarketplace,
       method:
@@ -180,7 +196,7 @@ export default function Home() {
       params: [NFTContract.address, BigInt(nft.itemId)],
       value: BigInt(nft.price),
     });
-    
+  
     buyNFTTransaction(transaction, {
       onSuccess: () => {
         console.log("Purchase successful!");
@@ -188,7 +204,21 @@ export default function Home() {
       },
       onError: (error) => {
         console.error("Purchase failed:", error);
-        alert("Purchase failed. Please try again.");
+        Swal.fire({
+          title: "Purchase Failed",
+          text: "Failed to purchase NFT. Please check your funds or try again later.",
+          icon: "error",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#f87171", // Matches text-red-400
+          background: "rgba(255, 255, 255, 0.1)", // Matches bg-main/10
+          backdrop: "rgba(0, 0, 0, 0.8)",
+          customClass: {
+            title: "text-foreground font-poppins text-2xl font-bold",
+            htmlContainer: "text-foreground/70 font-inter text-lg",
+            popup: "backdrop-blur-lg rounded-2xl border border-primary/20",
+            confirmButton: "bg-red-400 text-white font-poppins rounded-xl px-6 py-2",
+          },
+        });
       },
     });
   }
@@ -217,7 +247,7 @@ export default function Home() {
           onClick={() => setCurrentPage(i)}
           className={`px-3 py-2 mx-1 rounded-lg transition-colors ${
             currentPage === i
-              ? "bg-pink-500 text-white"
+              ? "bg-title text-white"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           }`}
         >
