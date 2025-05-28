@@ -138,8 +138,8 @@ contract NFTMarketplace is ReentrancyGuard {
         // First pass: count items owned by caller
         for (uint256 i = 1; i <= totalItemCount; i++) {
             if (
-                (idToMarketItem[i].seller == msg.sender && idToMarketItem[i].sold == false)
-                    || (idToMarketItem[i].owner == msg.sender && idToMarketItem[i].sold == true)
+                (idToMarketItem[i].seller == msg.sender && !idToMarketItem[i].sold)
+                    || (idToMarketItem[i].owner == msg.sender && idToMarketItem[i].sold)
             ) {
                 itemCount++;
             }

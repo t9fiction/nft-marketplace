@@ -483,3 +483,246 @@ describe("NFTMarketplace", function () {
     });
   });
 });
+describe("NFTMarketplace", function () {
+  // Test variables
+  let nftMarketplace;
+  let nft;
+  let listingPrice;
+  let auctionPrice;
+  let owner;
+  let addr1;
+  let addr2;
+  let addr3;
+
+  beforeEach(async function () {
+    try {
+      // Get signers for different test accounts
+      [owner, addr1, addr2, addr3] = await ethers.getSigners();
+
+      // Deploy the NFTMarketplace contract
+      const NFTMarketplace = await ethers.getContractFactory("NFTMarketplace");
+      nftMarketplace = await NFTMarketplace.deploy();
+      
+      // Deploy the NFT contract with the marketplace address
+      const NFT = await ethers.getContractFactory("NFT");
+      nft = await NFT.deploy(await nftMarketplace.getAddress());
+
+      // Get the listing price from marketplace
+      listingPrice = await nftMarketplace.getListingPrice();
+      
+      // Set auction price (10 ETH)
+      auctionPrice = ethers.parseEther("10");
+    } catch (error) {
+      console.error("Setup error:", error);
+      throw error;
+    }
+  });
+
+  // Helper function to create and mint an NFT token
+  async function createNFT(creator, tokenURI) {
+    try {
+      // Get current token ID before creating
+      const currentTokenId = await nft.getTokenId();
+      
+      // Create the token
+      const tx = await nft.connect(creator).createToken(tokenURI);
+      await tx.wait();
+      
+      // The new token ID will be the current token ID + 1
+      const newTokenId = await nft.getTokenId();
+      
+      return newTokenId;
+    } catch (error) {
+      console.error("Error creating NFT:", error);
+      throw error;
+    }
+  }
+
+  // Helper function to list an NFT on the marketplace
+  async function listNFT(seller, tokenId, price) {
+    try {
+      const nftAddress = await nft.getAddress();
+      
+      // Create market item
+      const tx = await nftMarketplace.connect(seller).createMarketItem(
+        nftAddress,
+        tokenId,
+        price,
+        { value: listingPrice }
+      );
+      await tx.wait();
+      
+      // Get the current item ID
+      const itemId = await nftMarketplace.getTotalItemsCount();
+      return itemId;
+    } catch (error) {
+      console.error("Error listing NFT:", error);
+      throw error;
+    }
+  }
+
+  // Helper function to purchase an NFT
+  async function purchaseNFT(buyer, itemId, price) {
+    try {
+      const nftAddress = await nft.getAddress();
+      
+      // Create market sale
+      const tx = await nftMarketplace.connect(buyer).createMarketSale(
+        nftAddress,
+        itemId,
+        { value: price }
+      );
+      await tx.wait();
+      return true;
+    } catch (error) {
+      console.error("Error purchasing NFT:", error);
+      throw error;
+    }
+  }
+
+  describe("fetchMyNFTs function", function() {
+    it("should fetch user's NFTs correctly - both selling and purchased", async function () {
+      try {
+        // Step 1: Owner creates and lists an NFT for sale
+        const tokenId1 = await createNFT(owner, "https://www.mytokenlocation1.com");
+        const itemId1 = await listNFT(owner, tokenId1, auctionPrice);
+  
+        // Step 2: addr1 purchases the NFT
+        await purchaseNFT(addr1, itemId1, auctionPrice);
+  
+        // Step 3: Owner creates and lists another NFT
+        const tokenId2 = await createNFT(owner, "https://www.mytokenlocation2.com");
+        const itemId2 = await listNFT(owner, tokenId2, auctionPrice);
+  
+        // Step 4: Verify fetchMyNFTs for owner (should have 1 NFT listed for sale)
+        const ownerNFTs = await nftMarketplace.connect(owner).fetchMyNFTs();
+        
+        expect(ownerNFTs.length).to.equal(1);
+        expect(Number(ownerNFTs[0].tokenId)).to.equal(Number(tokenId2));
+        expect(ownerNFTs[0].seller).to.equal(owner.address);
+        expect(ownerNFTs[0].sold).to.equal(false);
+  
+        // Step 5: Verify fetchMyNFTs for addr1 (should have 1 NFT purchased)
+        const addr1NFTs = await nftMarketplace.connect(addr1).fetchMyNFTs();
+        
+        expect(addr1NFTs.length).to.equal(1);
+        expect(Number(addr1NFTs[0].tokenId)).to.equal(Number(tokenId1));
+        expect(addr1NFTs[0].owner).to.equal(addr1.address);
+        expect(addr1NFTs[0].sold).to.equal(true);
+      } catch (error) {
+        console.error("Test error:", error);
+        throw error;
+      }
+    });
+
+    it("should correctly return both NFTs a user is selling and has purchased", async function() {
+      try {
+        // Create an NFT by addr1
+        const tokenId1 = await createNFT(addr1, "https://www.mytokenlocation1.com");
+        const itemId1 = await listNFT(addr1, tokenId1, auctionPrice);
+        
+        // Owner buys addr1's NFT
+        await purchaseNFT(owner, itemId1, auctionPrice);
+        
+        // Owner creates and lists their own NFT
+        const tokenId2 = await createNFT(owner, "https://www.mytokenlocation2.com");
+        const itemId2 = await listNFT(owner, tokenId2, auctionPrice);
+        
+        // addr1 creates and lists another NFT
+        const tokenId3 = await createNFT(addr1, "https://www.mytokenlocation3.com");
+        const itemId3 = await listNFT(addr1, tokenId3, auctionPrice);
+        
+        // addr1 buys owner's NFT
+        await purchaseNFT(addr1, itemId2, auctionPrice);
+        
+        // Now addr1 should have:
+        // 1. One NFT they're selling (tokenId3)
+        // 2. One NFT they've purchased (tokenId2)
+        const addr1NFTs = await nftMarketplace.connect(addr1).fetchMyNFTs();
+        
+        expect(addr1NFTs.length).to.equal(2);
+        
+        // Find the purchased NFT
+        const purchasedNFT = addr1NFTs.find(nft => nft.sold === true);
+        expect(purchasedNFT).to.not.be.undefined;
+        expect(Number(purchasedNFT.tokenId)).to.equal(Number(tokenId2));
+        expect(purchasedNFT.owner).to.equal(addr1.address);
+        
+        // Find the NFT for sale
+        const sellingNFT = addr1NFTs.find(nft => nft.sold === false);
+        expect(sellingNFT).to.not.be.undefined;
+        expect(Number(sellingNFT.tokenId)).to.equal(Number(tokenId3));
+        expect(sellingNFT.seller).to.equal(addr1.address);
+      } catch (error) {
+        console.error("Test error:", error);
+        throw error;
+      }
+    });
+
+    it("should return empty array when user has no NFTs", async function() {
+      // User with no NFTs should get an empty array
+      const emptyNFTs = await nftMarketplace.connect(addr3).fetchMyNFTs();
+      expect(emptyNFTs.length).to.equal(0);
+    });
+
+    it("should handle multiple NFTs in different states", async function() {
+      try {
+        // Create multiple NFTs with different owners and states
+        
+        // addr1 creates and lists 3 NFTs
+        const tokenId1 = await createNFT(addr1, "https://www.mytokenlocation1.com");
+        const itemId1 = await listNFT(addr1, tokenId1, auctionPrice);
+        
+        const tokenId2 = await createNFT(addr1, "https://www.mytokenlocation2.com");
+        const itemId2 = await listNFT(addr1, tokenId2, auctionPrice);
+        
+        const tokenId3 = await createNFT(addr1, "https://www.mytokenlocation3.com");
+        const itemId3 = await listNFT(addr1, tokenId3, auctionPrice);
+        
+        // owner buys one of addr1's NFTs
+        await purchaseNFT(owner, itemId1, auctionPrice);
+        
+        // addr2 buys another of addr1's NFTs
+        await purchaseNFT(addr2, itemId2, auctionPrice);
+        
+        // addr1 creates and lists one more NFT
+        const tokenId4 = await createNFT(addr1, "https://www.mytokenlocation4.com");
+        const itemId4 = await listNFT(addr1, tokenId4, auctionPrice);
+        
+        // owner creates and lists an NFT
+        const tokenId5 = await createNFT(owner, "https://www.mytokenlocation5.com");
+        const itemId5 = await listNFT(owner, tokenId5, auctionPrice);
+        
+        // addr1 buys owner's NFT
+        await purchaseNFT(addr1, itemId5, auctionPrice);
+        
+        // Check addr1's NFTs - should have 2 for sale and 1 purchased
+        const addr1NFTs = await nftMarketplace.connect(addr1).fetchMyNFTs();
+        
+        expect(addr1NFTs.length).to.equal(3);
+        
+        const sellingNFTs = addr1NFTs.filter(nft => nft.sold === false);
+        const purchasedNFTs = addr1NFTs.filter(nft => nft.sold === true);
+        
+        expect(sellingNFTs.length).to.equal(2);
+        expect(purchasedNFTs.length).to.equal(1);
+        
+        // Verify one of the NFTs for sale is tokenId3
+        const hasTokenId3 = sellingNFTs.some(nft => Number(nft.tokenId) === Number(tokenId3));
+        expect(hasTokenId3).to.be.true;
+        
+        // Verify one of the NFTs for sale is tokenId4
+        const hasTokenId4 = sellingNFTs.some(nft => Number(nft.tokenId) === Number(tokenId4));
+        expect(hasTokenId4).to.be.true;
+        
+        // Verify the purchased NFT is tokenId5
+        expect(Number(purchasedNFTs[0].tokenId)).to.equal(Number(tokenId5));
+        expect(purchasedNFTs[0].owner).to.equal(addr1.address);
+      } catch (error) {
+        console.error("Test error:", error);
+        throw error;
+      }
+    });
+  });
+});
+

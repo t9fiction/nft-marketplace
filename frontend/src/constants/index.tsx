@@ -2,9 +2,9 @@ import { client } from "@/app/client";
 import { sepolia } from "thirdweb/chains";
 import { getContract } from "thirdweb";
 
-export const NFT_ADDRESS = "0xA8519AFe30cB43f2aE7c997433973BbAB8E063ad";
+export const NFT_ADDRESS = "0x599D8ea817D2d2e2B1aE6865481fe2a361dD5c28";
 export const NFT_MARKETPLACE_ADDRESS =
-  "0x99BbAA88Ef22454FB464fB789CF484781b6661Ef";
+  "0x7D649D8210E99125E6208E70f2d9065Ca6181D01";
 export const chain = sepolia;
 
 export const NFTContract = getContract({
