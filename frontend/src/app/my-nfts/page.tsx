@@ -13,7 +13,13 @@ import {
   useSendAndConfirmTransaction,
 } from "thirdweb/react";
 import { client } from "../client";
-import { chain, NFT_ADDRESS, NFT_MARKETPLACE_ADDRESS, NFTContract, NFTMarketplace } from "@/constants";
+import {
+  chain,
+  NFT_ADDRESS,
+  NFT_MARKETPLACE_ADDRESS,
+  NFTContract,
+  NFTMarketplace,
+} from "@/constants";
 
 interface NFTItem {
   itemId: string;
@@ -44,17 +50,16 @@ export default function MyAssets() {
   const activeWallet = useActiveWallet();
   const activeAccount = useActiveAccount();
 
-
   const { mutate: listNFTTransaction } = useSendAndConfirmTransaction();
 
   // Filter and sort NFTs
   const filteredAndSortedNFTs = useMemo(() => {
     let filtered = nfts.filter((nft) => {
-      const matchesSearch = 
+      const matchesSearch =
         nft.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         nft.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         nft.tokenId.includes(searchQuery);
-      
+
       return matchesSearch;
     });
 
@@ -79,7 +84,10 @@ export default function MyAssets() {
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedNFTs.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedNFTs = filteredAndSortedNFTs.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedNFTs = filteredAndSortedNFTs.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
+  );
 
   // Reset to first page when search/filter changes
   useEffect(() => {
@@ -92,10 +100,17 @@ export default function MyAssets() {
     }
   }, [activeAccount]);
 
-
   async function loadMyNFTs() {
     try {
       setLoading(true);
+
+      // Ensure activeAccount and address are defined
+      if (!activeAccount || !activeAccount.address) {
+        console.error("No active account or address found");
+        setNfts([]);
+        return;
+      }
+
       const data = await readContract({
         contract: NFTMarketplace,
         method:
@@ -103,48 +118,56 @@ export default function MyAssets() {
         params: [],
       });
 
+      // Filter and map NFTs where the active account is the owner or seller
       const items: NFTItem[] = await Promise.all(
-        data.map(async (item: any) => {
-          try {
-            const tokenURI = await readContract({
-              contract: NFTContract,
-              method:
-                "function tokenURI(uint256 tokenId) view returns (string)",
-              params: [item.tokenId.toString()],
-            });
+        data
+          .filter(
+            (item: any) =>
+              item.owner.toLowerCase() ===
+                activeAccount.address.toLowerCase() ||
+              item.seller.toLowerCase() === activeAccount.address.toLowerCase()
+          )
+          .map(async (item: any) => {
+            try {
+              const tokenURI = await readContract({
+                contract: NFTContract,
+                method:
+                  "function tokenURI(uint256 tokenId) view returns (string)",
+                params: [item.tokenId.toString()],
+              });
 
-            const meta = await fetch(tokenURI).then((res) => res.json());
+              const meta = await fetch(tokenURI).then((res) => res.json());
 
-            return {
-              itemId: item.itemId.toString(),
-              nftContract: item.nftContract,
-              tokenId: item.tokenId.toString(),
-              seller: item.seller,
-              owner: item.owner,
-              price: item.price.toString(),
-              sold: item.sold,
-              image: meta.image || undefined,
-              name: meta.name || "Unnamed NFT",
-              description: meta.description || "No description available",
-            };
-          } catch (metaError) {
-            console.error(
-              `Error loading metadata for token ${item.tokenId}:`,
-              metaError
-            );
-            return {
-              itemId: item.itemId.toString(),
-              nftContract: item.nftContract,
-              tokenId: item.tokenId.toString(),
-              seller: item.seller,
-              owner: item.owner,
-              price: item.price.toString(),
-              sold: item.sold,
-              name: `NFT #${item.tokenId}`,
-              description: "Metadata unavailable",
-            };
-          }
-        })
+              return {
+                itemId: item.itemId.toString(),
+                nftContract: item.nftContract,
+                tokenId: item.tokenId.toString(),
+                seller: item.seller,
+                owner: item.owner,
+                price: item.price.toString(),
+                sold: item.sold,
+                image: meta.image || undefined,
+                name: meta.name || "Unnamed NFT",
+                description: meta.description || "No description available",
+              };
+            } catch (metaError) {
+              console.error(
+                `Error loading metadata for token ${item.tokenId}:`,
+                metaError
+              );
+              return {
+                itemId: item.itemId.toString(),
+                nftContract: item.nftContract,
+                tokenId: item.tokenId.toString(),
+                seller: item.seller,
+                owner: item.owner,
+                price: item.price.toString(),
+                sold: item.sold,
+                name: `NFT #${item.tokenId}`,
+                description: "Metadata unavailable",
+              };
+            }
+          })
       );
 
       setNfts(items);
@@ -178,8 +201,13 @@ export default function MyAssets() {
 
     const transaction = prepareContractCall({
       contract: NFTMarketplace,
-      method: "function createMarketItem(address _nftContract, uint256 _tokenId, uint256 _price) payable",
-      params: [NFTContract.address, BigInt(selectedNFT.tokenId), BigInt(priceInWei)],
+      method:
+        "function createMarketItem(address _nftContract, uint256 _tokenId, uint256 _price) payable",
+      params: [
+        NFTContract.address,
+        BigInt(selectedNFT.tokenId),
+        BigInt(priceInWei),
+      ],
     });
 
     listNFTTransaction(transaction, {
@@ -250,12 +278,26 @@ export default function MyAssets() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center p-8 bg-main rounded-2xl shadow-lg">
           <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
-            <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <svg
+              className="w-8 h-8 text-primary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Connect Your Wallet</h2>
-          <p className="text-foreground/70">Please connect your wallet to view your NFT collection</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+            Connect Your Wallet
+          </h2>
+          <p className="text-foreground/70">
+            Please connect your wallet to view your NFT collection
+          </p>
         </div>
       </div>
     );
@@ -269,7 +311,9 @@ export default function MyAssets() {
           <h1 className="text-4xl sm:text-5xl font-bold text-title mb-4 font-poppins">
             My NFT Collection
           </h1>
-          <p className="text-foreground/70 text-lg font-inter">Manage and list your digital assets</p>
+          <p className="text-foreground/70 text-lg font-inter">
+            Manage and list your digital assets
+          </p>
         </div>
 
         {/* Search and Filters */}
@@ -278,8 +322,18 @@ export default function MyAssets() {
             {/* Search */}
             <div className="flex-1 w-full lg:w-auto">
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-foreground/50"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
                 <input
                   type="text"
@@ -295,7 +349,9 @@ export default function MyAssets() {
             <div className="w-full sm:w-auto">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "name" | "price" | "newest")}
+                onChange={(e) =>
+                  setSortBy(e.target.value as "name" | "price" | "newest")
+                }
                 className="w-full px-4 py-3 border border-foreground/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
               >
                 <option value="newest">Newest First</option>
@@ -307,7 +363,8 @@ export default function MyAssets() {
 
           {/* Results Count */}
           <div className="mt-4 text-sm text-foreground/70">
-            Showing {paginatedNFTs.length} of {filteredAndSortedNFTs.length} NFTs
+            Showing {paginatedNFTs.length} of {filteredAndSortedNFTs.length}{" "}
+            NFTs
             {searchQuery && ` for "${searchQuery}"`}
           </div>
         </div>
@@ -316,7 +373,9 @@ export default function MyAssets() {
         {loading && (
           <div className="flex justify-center items-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <span className="ml-3 text-foreground/70">Loading your NFTs...</span>
+            <span className="ml-3 text-foreground/70">
+              Loading your NFTs...
+            </span>
           </div>
         )}
 
@@ -324,13 +383,27 @@ export default function MyAssets() {
         {!loading && filteredAndSortedNFTs.length === 0 && (
           <div className="text-center py-16">
             <div className="w-16 h-16 mx-auto mb-4 bg-foreground/10 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              <svg
+                className="w-8 h-8 text-foreground/50"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">No NFTs Found</h3>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              No NFTs Found
+            </h3>
             <p className="text-foreground/70">
-              {searchQuery ? "Try adjusting your search terms" : "You don't own any NFTs yet"}
+              {searchQuery
+                ? "Try adjusting your search terms"
+                : "You don't own any NFTs yet"}
             </p>
           </div>
         )}
@@ -341,27 +414,41 @@ export default function MyAssets() {
             {paginatedNFTs.map((nft, i) => {
               const priceInEth = nft.price ? toEther(BigInt(nft.price)) : "0";
               return (
-                <div key={`${nft.itemId}-${i}`} className="bg-main rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div
+                  key={`${nft.itemId}-${i}`}
+                  className="bg-main rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                >
                   {/* Image Container with Fixed Aspect Ratio */}
                   <div className="relative aspect-square bg-background/50">
                     {nft.image ? (
-                      <img 
-                        src={nft.image} 
+                      <img
+                        src={nft.image}
                         alt={nft.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial, sans-serif' font-size='16' fill='%236b7280'%3ENo Image%3C/text%3E%3C/svg%3E";
+                          target.src =
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial, sans-serif' font-size='16' fill='%236b7280'%3ENo Image%3C/text%3E%3C/svg%3E";
                         }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <svg className="w-16 h-16 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        <svg
+                          className="w-16 h-16 text-foreground/30"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
                         </svg>
                       </div>
                     )}
-                    
+
                     {/* Status Badge */}
                     <div className="absolute top-3 right-3">
                       <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
@@ -380,7 +467,9 @@ export default function MyAssets() {
                     </div>
 
                     {/* Token ID */}
-                    <p className="text-sm text-foreground/60 mb-3 font-inter">Token #{nft.tokenId}</p>
+                    <p className="text-sm text-foreground/60 mb-3 font-inter">
+                      Token #{nft.tokenId}
+                    </p>
 
                     {/* Description - Fixed Height */}
                     <div className="h-12 mb-4">
@@ -393,7 +482,9 @@ export default function MyAssets() {
                     {nft.price && parseFloat(priceInEth) > 0 && (
                       <div className="border-t border-foreground/10 pt-4 mb-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-foreground/60 font-inter">Current Price</span>
+                          <span className="text-sm text-foreground/60 font-inter">
+                            Current Price
+                          </span>
                           <span className="text-lg font-bold text-foreground font-poppins">
                             {parseFloat(priceInEth).toFixed(4)} ETH
                           </span>
@@ -423,13 +514,25 @@ export default function MyAssets() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-main rounded-2xl shadow-xl max-w-md w-full p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-foreground font-poppins">List NFT for Sale</h3>
+                <h3 className="text-2xl font-bold text-foreground font-poppins">
+                  List NFT for Sale
+                </h3>
                 <button
                   onClick={closeListModal}
                   className="text-foreground/50 hover:text-foreground transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -438,21 +541,35 @@ export default function MyAssets() {
               <div className="mb-6">
                 <div className="aspect-square bg-background/50 rounded-lg overflow-hidden mb-3">
                   {selectedNFT.image ? (
-                    <img 
-                      src={selectedNFT.image} 
+                    <img
+                      src={selectedNFT.image}
                       alt={selectedNFT.name}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <svg className="w-16 h-16 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      <svg
+                        className="w-16 h-16 text-foreground/30"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
                       </svg>
                     </div>
                   )}
                 </div>
-                <h4 className="text-lg font-bold text-foreground mb-1">{selectedNFT.name}</h4>
-                <p className="text-sm text-foreground/60">Token #{selectedNFT.tokenId}</p>
+                <h4 className="text-lg font-bold text-foreground mb-1">
+                  {selectedNFT.name}
+                </h4>
+                <p className="text-sm text-foreground/60">
+                  Token #{selectedNFT.tokenId}
+                </p>
               </div>
 
               {/* Price Input */}
