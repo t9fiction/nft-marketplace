@@ -9,6 +9,7 @@
   --color-main: #f7cac9;        /* Soft rosy pink */
   --color-background: #e5e7eb;  /* Light grayish background */
   --color-foreground: #1a1a2e;  /* Dark charcoal for text */
+  --color-title: #fa7659;
 }
 
 /* Dark mode overrides */
@@ -19,6 +20,7 @@
     --color-main: #193947;        /* Warm coral accent */
     --color-background: #0f1a24;  /* Deep space black */
     --color-foreground: #d1d9e6;  /* Light silver text */
+    --color-title: #fa7659;
   }
 }
 

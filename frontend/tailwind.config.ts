@@ -18,6 +18,7 @@ const config: Config = {
         main: 'var(--color-main)',
         background: 'var(--color-background)',
         foreground: 'var(--color-foreground)',
+        title: 'var(--color-title)',
       },
     },
   },

@@ -86,9 +86,9 @@ contract NFTMarketplace is ReentrancyGuard {
 
     function createMarketSale(address _nftContract, uint256 _itemId) public payable nonReentrant {
         if (_itemId == 0 || _itemId > _itemIds) revert NFTMarketplace__Errors.InvalidItemId();
-        
+
         MarketItem storage item = idToMarketItem[_itemId];
-        
+
         if (item.sold) revert NFTMarketplace__Errors.ItemNotForSale();
         if (msg.value != item.price) revert NFTMarketplace__Errors.IncorrectPurchasePrice();
 
@@ -104,10 +104,10 @@ contract NFTMarketplace is ReentrancyGuard {
 
         // Transfer NFT to buyer
         IERC721(_nftContract).transferFrom(address(this), msg.sender, tokenId);
-        
+
         // Transfer listing fee to marketplace owner
         payable(owner).transfer(listingPrice);
-        
+
         // Transfer sale amount to seller
         payable(seller).transfer(price);
 
@@ -129,7 +129,7 @@ contract NFTMarketplace is ReentrancyGuard {
         return items;
     }
 
-    // Fetch NFTs owned by the caller (purchased items)
+    // Fetch NFTs owned by the caller (created and purchased items)
     function fetchMyNFTs() public view returns (MarketItem[] memory) {
         uint256 totalItemCount = _itemIds;
         uint256 itemCount = 0;
@@ -137,7 +137,10 @@ contract NFTMarketplace is ReentrancyGuard {
 
         // First pass: count items owned by caller
         for (uint256 i = 1; i <= totalItemCount; i++) {
-            if (idToMarketItem[i].owner == msg.sender) {
+            if (
+                (idToMarketItem[i].seller == msg.sender && idToMarketItem[i].sold == false)
+                    || (idToMarketItem[i].owner == msg.sender && idToMarketItem[i].sold == true)
+            ) {
                 itemCount++;
             }
         }
@@ -145,7 +148,10 @@ contract NFTMarketplace is ReentrancyGuard {
         // Second pass: populate array
         MarketItem[] memory items = new MarketItem[](itemCount);
         for (uint256 i = 1; i <= totalItemCount; i++) {
-            if (idToMarketItem[i].owner == msg.sender) {
+            if (
+                (idToMarketItem[i].seller == msg.sender && idToMarketItem[i].sold == false)
+                    || (idToMarketItem[i].owner == msg.sender && idToMarketItem[i].sold == true)
+            ) {
                 items[currentIndex] = idToMarketItem[i];
                 currentIndex++;
             }

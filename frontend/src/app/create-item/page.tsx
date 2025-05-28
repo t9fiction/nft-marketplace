@@ -1,5 +1,11 @@
 "use client";
-import { chain, NFT_ADDRESS, NFT_MARKETPLACE_ADDRESS } from "@/constants";
+import {
+  chain,
+  NFT_ADDRESS,
+  NFT_MARKETPLACE_ADDRESS,
+  NFTContract,
+  NFTMarketplace,
+} from "@/constants";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import {
@@ -20,23 +26,11 @@ import {
 import { client } from "../client";
 
 // Pinata configuration
-const PINATA_API_KEY = "2f4bc968a4e1cdcb9af4";
-const PINATA_SECRET_API_KEY =
-  "6cb8ec099a6cf0d61a8f237738fd11b1f26ec7b2dcd685df1ee839fc8b0ba477";
-const PINATA_JWT =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI1MDFlZmM2OS01OTRhLTQyMGUtOWVhYS0wMDVlNWI5MjQyNjMiLCJlbWFpbCI6InNvaGFpbC5zb2hhaWxpc2hhcUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiMmY0YmM5NjhhNGUxY2RjYjlhZjQiLCJzY29wZWRLZXlTZWNyZXQiOiI2Y2I4ZWMwOTlhNmNmMGQ2MWE4ZjIzNzczOGZkMTFiMWYyNmVjN2IyZGNkNjg1ZGYxZWU4MzlmYzhiMGJhNDc3IiwiZXhwIjoxNzc5ODA0MDYyfQ._N2e5KwxAhUjFu3aEAXXfQtc5-FPpTlEMdG0azYmtSA";
+// const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
 
-const NFTContract = getContract({
-  client,
-  chain: chain,
-  address: NFT_ADDRESS,
-});
-
-const NFTMarketplace = getContract({
-  client,
-  chain: chain,
-  address: NFT_MARKETPLACE_ADDRESS,
-});
+const PINATA_API_Key="52297ef86d10950d61bc"
+const PINATA_SECRET_API_KEY="271d5e1e42b7487d263a05348620975f75bb04b3897e11d578ee4caff724c076"
+const PINATA_JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI1MDFlZmM2OS01OTRhLTQyMGUtOWVhYS0wMDVlNWI5MjQyNjMiLCJlbWFpbCI6InNvaGFpbC5zb2hhaWxpc2hhcUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiNTIyOTdlZjg2ZDEwOTUwZDYxYmMiLCJzY29wZWRLZXlTZWNyZXQiOiIyNzFkNWUxZTQyYjc0ODdkMjYzYTA1MzQ4NjIwOTc1Zjc1YmIwNGIzODk3ZTExZDU3OGVlNGNhZmY3MjRjMDc2IiwiZXhwIjoxNzc5OTc4MjY2fQ.Q7f_pVArJ3aBG-vmARn2RqRHt0eXA9EhLbZ3RyA7p5I"
 
 const CreateItem = () => {
   const activeWallet = useActiveWallet();
@@ -55,6 +49,9 @@ const CreateItem = () => {
 
   // Upload file to Pinata
   async function uploadToPinata(file: File) {
+    if (!PINATA_JWT) {
+      throw new Error("Pinata JWT is not defined");
+    }
     const formData = new FormData();
     formData.append("file", file);
 
@@ -152,6 +149,9 @@ const CreateItem = () => {
       setStatus("Please select an image and connect your wallet");
       return;
     }
+    if (!PINATA_JWT) {
+      throw new Error("Pinata JWT is not defined");
+    }
 
     // Validate price
     if (
@@ -215,8 +215,7 @@ const CreateItem = () => {
       // Prepare mint transaction
       const tx = prepareContractCall({
         contract: NFTContract,
-        method:
-          "function createToken(string memory tokenURI)",
+        method: "function createToken(string memory tokenURI)",
         params: [metadataUrl],
       });
 
@@ -239,7 +238,7 @@ const CreateItem = () => {
       });
 
       // Add a small delay to ensure event is indexed
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       const eventData = await getContractEvents({
         contract: NFTContract,
@@ -252,10 +251,10 @@ const CreateItem = () => {
         throw new Error("Could not retrieve token ID from mint transaction");
       }
 
-      let length = eventData.length - 1; // Get the last event
+      let length = eventData.length; // Get the last event
       console.log("Event data length:", length);
 
-      const tokenId = eventData[length].args.tokenId.toString();
+      const tokenId = eventData[length-1].args.tokenId.toString();
       console.log("Token ID:", tokenId);
 
       setStatus("NFT minted! Listing on marketplace...");
@@ -310,14 +309,14 @@ const CreateItem = () => {
             Create Your NFT
           </h1>
           <p className="text-lg text-foreground/70 font-inter max-w-2xl mx-auto">
-            Transform your digital art into a unique NFT and list it on the marketplace
+            Transform your digital art into a unique NFT and list it on the
+            marketplace
           </p>
           <p className="text-xs text-foreground/20 font-inter mt-2">
             Supported formats: PNG, JPG, GIF (max 1 MB)
-            <br />
-            A small fee of 0.025 ETH is required to list your NFT on the marketplace.
+            <br />A small fee of 0.025 ETH is required to list your NFT on the
+            marketplace.
           </p>
-
         </div>
 
         {activeWallet ? (
@@ -351,7 +350,10 @@ const CreateItem = () => {
                     className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-foreground placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter resize-none h-24"
                     value={formInput.description}
                     onChange={(e) =>
-                      setFormInput({ ...formInput, description: e.target.value })
+                      setFormInput({
+                        ...formInput,
+                        description: e.target.value,
+                      })
                     }
                     required
                   />
@@ -396,13 +398,28 @@ const CreateItem = () => {
                       required
                     />
                     <div className="flex flex-col items-center justify-center px-6 py-8 border-2 border-dashed border-primary/40 rounded-xl bg-background/30 hover:bg-background/50 transition-all duration-200">
-                      <svg className="w-10 h-10 text-primary mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <svg
+                        className="w-10 h-10 text-primary mb-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
                       </svg>
                       <p className="text-foreground/70 text-center">
-                        <span className="font-semibold text-primary">Click to upload</span> or drag and drop
+                        <span className="font-semibold text-primary">
+                          Click to upload
+                        </span>{" "}
+                        or drag and drop
                       </p>
-                      <p className="text-sm text-foreground/50 mt-1">PNG, JPG, GIF up to 10MB</p>
+                      <p className="text-sm text-foreground/50 mt-1">
+                        PNG, JPG, GIF up to 10MB
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -415,27 +432,30 @@ const CreateItem = () => {
                     status.includes("Uploading") || status.includes("Minting")
                   }
                 >
-                  {status.includes("Uploading") || status.includes("Minting")
-                    ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>Processing...</span>
-                      </div>
-                    )
-                    : "Create & List NFT"}
+                  {status.includes("Uploading") ||
+                  status.includes("Minting") ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Processing...</span>
+                    </div>
+                  ) : (
+                    "Create & List NFT"
+                  )}
                 </button>
               </form>
 
               {/* Status Message */}
               {status && (
                 <div className="mt-6 p-4 rounded-xl text-center">
-                  <p className={`font-semibold ${
-                    status.includes("Error") 
-                      ? "text-red-400 bg-red-400/10 border border-red-400/20" 
-                      : status.includes("successfully")
-                      ? "text-green-400 bg-green-400/10 border border-green-400/20"
-                      : "text-primary bg-primary/10 border border-primary/20"
-                  } p-3 rounded-lg font-inter`}>
+                  <p
+                    className={`font-semibold ${
+                      status.includes("Error")
+                        ? "text-red-400 bg-red-400/10 border border-red-400/20"
+                        : status.includes("successfully")
+                        ? "text-green-400 bg-green-400/10 border border-green-400/20"
+                        : "text-primary bg-primary/10 border border-primary/20"
+                    } p-3 rounded-lg font-inter`}
+                  >
                     {status}
                   </p>
                 </div>
@@ -448,7 +468,7 @@ const CreateItem = () => {
                 <h3 className="text-2xl font-bold text-foreground font-poppins text-center">
                   NFT Preview
                 </h3>
-                
+
                 {fileUrl ? (
                   <div className="space-y-4">
                     <div className="relative group overflow-hidden rounded-xl bg-background/50 border border-primary/20">
@@ -459,7 +479,7 @@ const CreateItem = () => {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </div>
-                    
+
                     {/* Preview Card Details */}
                     <div className="space-y-3 p-4 bg-background/30 rounded-xl border border-primary/10">
                       <h4 className="text-lg font-bold text-foreground font-poppins">
@@ -469,7 +489,9 @@ const CreateItem = () => {
                         {formInput.description || "No description provided"}
                       </p>
                       <div className="flex justify-between items-center pt-2 border-t border-primary/10">
-                        <span className="text-foreground/60 text-sm font-inter">Price</span>
+                        <span className="text-foreground/60 text-sm font-inter">
+                          Price
+                        </span>
                         <span className="text-primary font-bold font-poppins">
                           {formInput.price || "0.00"} ETH
                         </span>
@@ -478,8 +500,18 @@ const CreateItem = () => {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 sm:h-80 border-2 border-dashed border-primary/30 rounded-xl bg-background/20">
-                    <svg className="w-16 h-16 text-primary/50 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <svg
+                      className="w-16 h-16 text-primary/50 mb-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
                     </svg>
                     <p className="text-foreground/50 text-center font-inter">
                       Upload an image to see preview
@@ -492,8 +524,18 @@ const CreateItem = () => {
         ) : (
           <div className="text-center py-20">
             <div className="bg-main/10 backdrop-blur-lg rounded-2xl p-12 border border-primary/20 shadow-2xl max-w-md mx-auto">
-              <svg className="w-16 h-16 text-primary mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              <svg
+                className="w-16 h-16 text-primary mx-auto mb-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
               </svg>
               <h3 className="text-xl font-bold text-foreground mb-3 font-poppins">
                 Wallet Not Connected

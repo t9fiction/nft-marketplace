@@ -1,21 +1,20 @@
 "use client";
-import { NFT_ADDRESS, NFT_MARKETPLACE_ADDRESS, chain } from "@/constants";
-
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   getContract,
   readContract,
   prepareContractCall,
   toEther,
 } from "thirdweb";
-import { client } from "./client";
 import {
   useActiveAccount,
   useActiveWallet,
   useSendAndConfirmTransaction,
 } from "thirdweb/react";
+import { client } from "../client";
+import { chain, NFT_ADDRESS, NFT_MARKETPLACE_ADDRESS, NFTContract, NFTMarketplace } from "@/constants";
 
-// Move interface outside component and include all properties
 interface NFTItem {
   itemId: string;
   nftContract: string;
@@ -31,30 +30,22 @@ interface NFTItem {
 
 const ITEMS_PER_PAGE = 12;
 
-export default function Home() {
+export default function MyAssets() {
   const [nfts, setNfts] = useState<NFTItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<"name" | "price" | "newest">("newest");
-  const [priceFilter, setPriceFilter] = useState<"all" | "low" | "high">("all");
-  
+  const [showListModal, setShowListModal] = useState(false);
+  const [selectedNFT, setSelectedNFT] = useState<NFTItem | null>(null);
+  const [listingPrice, setListingPrice] = useState("");
+
+  const router = useRouter();
   const activeWallet = useActiveWallet();
   const activeAccount = useActiveAccount();
 
-  const NFTContract = getContract({
-    client,
-    chain: chain,
-    address: NFT_ADDRESS,
-  });
 
-  const NFTMarketplace = getContract({
-    client,
-    chain: chain,
-    address: NFT_MARKETPLACE_ADDRESS,
-  });
-
-  const { mutate: buyNFTTransaction } = useSendAndConfirmTransaction();
+  const { mutate: listNFTTransaction } = useSendAndConfirmTransaction();
 
   // Filter and sort NFTs
   const filteredAndSortedNFTs = useMemo(() => {
@@ -64,16 +55,7 @@ export default function Home() {
         nft.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         nft.tokenId.includes(searchQuery);
       
-      let matchesPrice = true;
-      if (priceFilter === "low") {
-        const priceInEth = parseFloat(toEther(BigInt(nft.price)));
-        matchesPrice = priceInEth <= 1;
-      } else if (priceFilter === "high") {
-        const priceInEth = parseFloat(toEther(BigInt(nft.price)));
-        matchesPrice = priceInEth > 1;
-      }
-      
-      return matchesSearch && matchesPrice && !nft.sold;
+      return matchesSearch;
     });
 
     // Sort the filtered results
@@ -82,8 +64,8 @@ export default function Home() {
         case "name":
           return (a.name || "").localeCompare(b.name || "");
         case "price":
-          const priceA = parseFloat(toEther(BigInt(a.price)));
-          const priceB = parseFloat(toEther(BigInt(b.price)));
+          const priceA = parseFloat(toEther(BigInt(a.price || "0")));
+          const priceB = parseFloat(toEther(BigInt(b.price || "0")));
           return priceA - priceB;
         case "newest":
         default:
@@ -92,7 +74,7 @@ export default function Home() {
     });
 
     return filtered;
-  }, [nfts, searchQuery, sortBy, priceFilter]);
+  }, [nfts, searchQuery, sortBy]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedNFTs.length / ITEMS_PER_PAGE);
@@ -102,15 +84,22 @@ export default function Home() {
   // Reset to first page when search/filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, sortBy, priceFilter]);
+  }, [searchQuery, sortBy]);
 
-  async function loadNFTs() {
+  useEffect(() => {
+    if (activeAccount) {
+      loadMyNFTs();
+    }
+  }, [activeAccount]);
+
+
+  async function loadMyNFTs() {
     try {
       setLoading(true);
       const data = await readContract({
         contract: NFTMarketplace,
         method:
-          "function fetchMarketItems() view returns ((uint256 itemId, address nftContract, uint256 tokenId, address seller, address owner, uint256 price, bool sold)[])",
+          "function fetchMyNFTs() view returns ((uint256 itemId, address nftContract, uint256 tokenId, address seller, address owner, uint256 price, bool sold)[])",
         params: [],
       });
 
@@ -167,35 +156,44 @@ export default function Home() {
     }
   }
 
-  function buyOnClick(nft: NFTItem) {
-    if (!activeAccount) {
-      alert("Please connect your wallet first");
+  function openListModal(nft: NFTItem) {
+    setSelectedNFT(nft);
+    setListingPrice("");
+    setShowListModal(true);
+  }
+
+  function closeListModal() {
+    setShowListModal(false);
+    setSelectedNFT(null);
+    setListingPrice("");
+  }
+
+  function handleListNFT() {
+    if (!selectedNFT || !listingPrice || !activeAccount) {
+      alert("Please enter a valid price");
       return;
     }
 
+    const priceInWei = (parseFloat(listingPrice) * 1e18).toString();
+
     const transaction = prepareContractCall({
       contract: NFTMarketplace,
-      method:
-        "function createMarketSale(address _nftContract, uint256 _itemId) payable",
-      params: [NFTContract.address, BigInt(nft.itemId)],
-      value: BigInt(nft.price),
+      method: "function createMarketItem(address _nftContract, uint256 _tokenId, uint256 _price) payable",
+      params: [NFTContract.address, BigInt(selectedNFT.tokenId), BigInt(priceInWei)],
     });
-    
-    buyNFTTransaction(transaction, {
+
+    listNFTTransaction(transaction, {
       onSuccess: () => {
-        console.log("Purchase successful!");
-        loadNFTs(); // Reload NFTs after successful purchase
+        console.log("NFT listed successfully!");
+        closeListModal();
+        loadMyNFTs(); // Reload NFTs after successful listing
       },
       onError: (error) => {
-        console.error("Purchase failed:", error);
-        alert("Purchase failed. Please try again.");
+        console.error("Listing failed:", error);
+        alert("Listing failed. Please try again.");
       },
     });
   }
-
-  useEffect(() => {
-    loadNFTs();
-  }, []);
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
@@ -257,7 +255,7 @@ export default function Home() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-foreground mb-2">Connect Your Wallet</h2>
-          <p className="text-foreground/70">Please connect your wallet to browse and purchase NFTs</p>
+          <p className="text-foreground/70">Please connect your wallet to view your NFT collection</p>
         </div>
       </div>
     );
@@ -269,9 +267,9 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-title mb-4 font-poppins">
-            NFT Marketplace
+            My NFT Collection
           </h1>
-          <p className="text-foreground/70 text-lg font-inter">Discover, collect, and trade unique digital assets</p>
+          <p className="text-foreground/70 text-lg font-inter">Manage and list your digital assets</p>
         </div>
 
         {/* Search and Filters */}
@@ -285,7 +283,7 @@ export default function Home() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search NFTs by name, description, or token ID..."
+                  placeholder="Search your NFTs by name, description, or token ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-foreground/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground placeholder-foreground/50"
@@ -305,19 +303,6 @@ export default function Home() {
                 <option value="price">Price Low to High</option>
               </select>
             </div>
-
-            {/* Price Filter */}
-            <div className="w-full sm:w-auto">
-              <select
-                value={priceFilter}
-                onChange={(e) => setPriceFilter(e.target.value as "all" | "low" | "high")}
-                className="w-full px-4 py-3 border border-foreground/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
-              >
-                <option value="all">All Prices</option>
-                <option value="low">≤ 1 ETH</option>
-                <option value="high">&gt; 1 ETH</option>
-              </select>
-            </div>
           </div>
 
           {/* Results Count */}
@@ -331,7 +316,7 @@ export default function Home() {
         {loading && (
           <div className="flex justify-center items-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <span className="ml-3 text-foreground/70">Loading NFTs...</span>
+            <span className="ml-3 text-foreground/70">Loading your NFTs...</span>
           </div>
         )}
 
@@ -340,12 +325,12 @@ export default function Home() {
           <div className="text-center py-16">
             <div className="w-16 h-16 mx-auto mb-4 bg-foreground/10 rounded-full flex items-center justify-center">
               <svg className="w-8 h-8 text-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.441.935-5.982 2.458m11.964 0A7.962 7.962 0 0112 15c2.34 0 4.441.935 5.982 2.458M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">No NFTs Found</h3>
             <p className="text-foreground/70">
-              {searchQuery ? "Try adjusting your search terms or filters" : "No NFTs available in the marketplace"}
+              {searchQuery ? "Try adjusting your search terms" : "You don't own any NFTs yet"}
             </p>
           </div>
         )}
@@ -354,7 +339,7 @@ export default function Home() {
         {!loading && paginatedNFTs.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {paginatedNFTs.map((nft, i) => {
-              const priceInEth = toEther(BigInt(nft.price));
+              const priceInEth = nft.price ? toEther(BigInt(nft.price)) : "0";
               return (
                 <div key={`${nft.itemId}-${i}`} className="bg-main rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   {/* Image Container with Fixed Aspect Ratio */}
@@ -379,8 +364,8 @@ export default function Home() {
                     
                     {/* Status Badge */}
                     <div className="absolute top-3 right-3">
-                      <span className="bg-secondary text-white px-2 py-1 rounded-full text-xs font-medium">
-                        Available
+                      <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                        Owned
                       </span>
                     </div>
                   </div>
@@ -404,22 +389,25 @@ export default function Home() {
                       </p>
                     </div>
 
-                    {/* Price and Buy Button */}
-                    <div className="border-t border-foreground/10 pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm text-foreground/60 font-inter">Price</span>
-                        <span className="text-xl font-bold text-foreground font-poppins">
-                          {parseFloat(priceInEth).toFixed(4)} ETH
-                        </span>
+                    {/* Current Price Display (if any) */}
+                    {nft.price && parseFloat(priceInEth) > 0 && (
+                      <div className="border-t border-foreground/10 pt-4 mb-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-foreground/60 font-inter">Current Price</span>
+                          <span className="text-lg font-bold text-foreground font-poppins">
+                            {parseFloat(priceInEth).toFixed(4)} ETH
+                          </span>
+                        </div>
                       </div>
-                      
-                      <button
-                        onClick={() => buyOnClick(nft)}
-                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 font-inter"
-                      >
-                        Buy Now
-                      </button>
-                    </div>
+                    )}
+
+                    {/* List Button */}
+                    <button
+                      onClick={() => openListModal(nft)}
+                      className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 font-inter"
+                    >
+                      List for Sale
+                    </button>
                   </div>
                 </div>
               );
@@ -429,6 +417,79 @@ export default function Home() {
 
         {/* Pagination */}
         {renderPagination()}
+
+        {/* List NFT Modal */}
+        {showListModal && selectedNFT && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-main rounded-2xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-foreground font-poppins">List NFT for Sale</h3>
+                <button
+                  onClick={closeListModal}
+                  className="text-foreground/50 hover:text-foreground transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* NFT Preview */}
+              <div className="mb-6">
+                <div className="aspect-square bg-background/50 rounded-lg overflow-hidden mb-3">
+                  {selectedNFT.image ? (
+                    <img 
+                      src={selectedNFT.image} 
+                      alt={selectedNFT.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg className="w-16 h-16 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <h4 className="text-lg font-bold text-foreground mb-1">{selectedNFT.name}</h4>
+                <p className="text-sm text-foreground/60">Token #{selectedNFT.tokenId}</p>
+              </div>
+
+              {/* Price Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Listing Price (ETH)
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  placeholder="0.00"
+                  value={listingPrice}
+                  onChange={(e) => setListingPrice(e.target.value)}
+                  className="w-full px-4 py-3 border border-foreground/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-background text-foreground"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={closeListModal}
+                  className="flex-1 px-4 py-3 border border-foreground/20 text-foreground rounded-lg hover:bg-background transition-colors font-inter"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleListNFT}
+                  disabled={!listingPrice || parseFloat(listingPrice) <= 0}
+                  className="flex-1 bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-inter"
+                >
+                  List NFT
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
