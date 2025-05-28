@@ -128,9 +128,9 @@ const CreateItem = () => {
     if (!file) return;
 
     try {
-      // Validate file size (e.g., max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        throw new Error("File size exceeds 10MB limit");
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error("File size exceeds 2MB limit");
       }
       setFormInput({ ...formInput, image: file });
       const reader = new FileReader();
@@ -152,7 +152,7 @@ const CreateItem = () => {
     if (!PINATA_JWT) {
       throw new Error("Pinata JWT is not defined");
     }
-  
+
     // Validate price
     if (
       !formInput.price ||
@@ -162,9 +162,9 @@ const CreateItem = () => {
       setStatus("Please enter a valid price greater than 0");
       return;
     }
-  
+
     setStatus("Uploading to Pinata...");
-  
+
     try {
       console.log("Starting upload process...");
       console.log(
@@ -173,7 +173,7 @@ const CreateItem = () => {
         formInput.image.type,
         formInput.image.size
       );
-  
+
       // Upload image to Pinata
       const imageUrl = (await Promise.race([
         uploadToPinata(formInput.image),
@@ -184,9 +184,9 @@ const CreateItem = () => {
           )
         ),
       ])) as string;
-  
+
       console.log("Image uploaded successfully to:", imageUrl);
-  
+
       // Create metadata
       const metadata = {
         name: formInput.name,
@@ -194,9 +194,9 @@ const CreateItem = () => {
         image: imageUrl,
         attributes: [{ trait_type: "Collection", value: "numericsins" }],
       };
-  
+
       console.log("Created metadata:", metadata);
-  
+
       // Upload metadata to Pinata
       const metadataUrl = (await Promise.race([
         uploadJSONToPinata(metadata, `${formInput.name}_metadata.json`),
@@ -207,44 +207,44 @@ const CreateItem = () => {
           )
         ),
       ])) as string;
-  
+
       console.log("Metadata uploaded to:", metadataUrl);
-  
+
       setStatus("Minting NFT...");
-  
+
       // Prepare mint transaction
       const tx = prepareContractCall({
         contract: NFTContract,
         method: "function createToken(string memory tokenURI)",
         params: [metadataUrl],
       });
-  
+
       if (!account) {
         setStatus("Error: Account not found");
         return;
       }
-  
+
       // Send and confirm mint transaction
       const mintReceipt = await sendAndConfirmTransaction({
         transaction: tx,
         account,
       });
       console.log("Mint transaction receipt:", mintReceipt);
-  
+
       // Get the latest events to find the tokenId with retry mechanism
       const preparedEvent = prepareEvent({
         signature:
           "event MarketItemCreated(uint256 indexed tokenId, address indexed minter)",
       });
-  
+
       setStatus("Fetching token ID...");
-  
+
       // Retry fetching events up to 5 times with increasing delay
       let tokenId: string | null = null;
       const maxRetries = 5;
       const initialDelay = 3000; // Start with 3 seconds
       const delayIncrement = 2000; // Increase by 2 seconds each retry
-  
+
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const eventData = await getContractEvents({
@@ -253,24 +253,25 @@ const CreateItem = () => {
             fromBlock: mintReceipt.blockNumber, // Start from the block of the mint transaction
             toBlock: "latest", // Look up to the latest block
           });
-  
+
           console.log(`Attempt ${attempt} - Event data:`, eventData);
-  
+
           if (eventData && eventData.length > 0) {
             // Filter events to ensure we get the one from this transaction
             const relevantEvent = eventData.find(
               (event) =>
                 event.transactionHash === mintReceipt.transactionHash &&
-                event.args.minter.toLowerCase() === account.address.toLowerCase()
+                event.args.minter.toLowerCase() ===
+                  account.address.toLowerCase()
             );
-  
+
             if (relevantEvent) {
               tokenId = relevantEvent.args.tokenId.toString();
               console.log("Token ID:", tokenId);
               break;
             }
           }
-  
+
           if (attempt < maxRetries) {
             const delay = initialDelay + (attempt - 1) * delayIncrement;
             console.log(`Retrying after ${delay / 1000} seconds...`);
@@ -280,15 +281,15 @@ const CreateItem = () => {
           console.error(`Attempt ${attempt} - Error fetching events:`, error);
         }
       }
-  
+
       if (!tokenId) {
         throw new Error(
           "Could not retrieve token ID after multiple attempts. Please try again later."
         );
       }
-  
+
       setStatus("NFT minted! Listing on marketplace...");
-  
+
       // Prepare marketplace listing transaction
       const transaction = prepareContractCall({
         contract: NFTMarketplace,
@@ -297,14 +298,14 @@ const CreateItem = () => {
         params: [NFTContract.address, BigInt(tokenId), toWei(formInput.price)],
         value: toWei("0.025"),
       });
-  
+
       await sendAndConfirmTransaction({
         transaction,
         account,
       });
-  
+
       setStatus("NFT created and listed successfully!");
-  
+
       // Reset form
       setFormInput({
         name: "",
@@ -313,7 +314,7 @@ const CreateItem = () => {
         image: null,
       });
       setFileUrl(null);
-  
+
       // Redirect after a short delay
       setTimeout(() => {
         router.push("/");
@@ -329,7 +330,7 @@ const CreateItem = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold text-foreground font-poppins mb-4">
+          <h1 className="text-4xl sm:text-5xl font-bold text-title font-poppins mb-4">
             Create Your NFT
           </h1>
           <p className="text-lg text-foreground/70 font-inter max-w-2xl mx-auto">
@@ -337,7 +338,7 @@ const CreateItem = () => {
             marketplace
           </p>
           <p className="text-xs text-foreground/20 font-inter mt-2">
-            Supported formats: PNG, JPG, GIF (max 1 MB)
+            Supported formats: PNG, JPG, GIF (max 2MB)
             <br />A small fee of 0.025 ETH is required to list your NFT on the
             marketplace.
           </p>
@@ -432,7 +433,7 @@ const CreateItem = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0 IEP-3 3m3-3v12"
                         />
                       </svg>
                       <p className="text-foreground/70 text-center">
@@ -442,7 +443,7 @@ const CreateItem = () => {
                         or drag and drop
                       </p>
                       <p className="text-sm text-foreground/50 mt-1">
-                        PNG, JPG, GIF up to 10MB
+                        PNG, JPG, GIF up to 2MB
                       </p>
                     </div>
                   </div>
