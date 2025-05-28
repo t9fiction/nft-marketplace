@@ -3,7 +3,7 @@
 
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-const nftMarket: string = '0x7D649D8210E99125E6208E70f2d9065Ca6181D01';
+const nftMarket: string = '0x8b035CAb51b0FbA6D8e537523c13FA50136650cE';
 
 const NFTModule = buildModule("NFTModule", (m) => {
   const contractAddress = m.getParameter("contractAddress", nftMarket);

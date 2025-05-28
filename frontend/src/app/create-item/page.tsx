@@ -331,7 +331,7 @@ const CreateItem = () => {
                   </label>
                   <input
                     placeholder="Enter your NFT name"
-                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-foreground placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter"
+                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter"
                     value={formInput.name}
                     onChange={(e) =>
                       setFormInput({ ...formInput, name: e.target.value })
@@ -347,7 +347,7 @@ const CreateItem = () => {
                   </label>
                   <textarea
                     placeholder="Describe your NFT in detail"
-                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-foreground placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter resize-none h-24"
+                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter resize-none h-24"
                     value={formInput.description}
                     onChange={(e) =>
                       setFormInput({
@@ -367,7 +367,7 @@ const CreateItem = () => {
                   <div className="relative">
                     <input
                       placeholder="0.00"
-                      className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-foreground placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter pr-12"
+                      className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter pr-12"
                       value={formInput.price}
                       onChange={(e) =>
                         setFormInput({ ...formInput, price: e.target.value })
