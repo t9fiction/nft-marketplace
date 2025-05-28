@@ -152,7 +152,7 @@ const CreateItem = () => {
     if (!PINATA_JWT) {
       throw new Error("Pinata JWT is not defined");
     }
-
+  
     // Validate price
     if (
       !formInput.price ||
@@ -162,9 +162,9 @@ const CreateItem = () => {
       setStatus("Please enter a valid price greater than 0");
       return;
     }
-
+  
     setStatus("Uploading to Pinata...");
-
+  
     try {
       console.log("Starting upload process...");
       console.log(
@@ -173,7 +173,7 @@ const CreateItem = () => {
         formInput.image.type,
         formInput.image.size
       );
-
+  
       // Upload image to Pinata
       const imageUrl = (await Promise.race([
         uploadToPinata(formInput.image),
@@ -184,9 +184,9 @@ const CreateItem = () => {
           )
         ),
       ])) as string;
-
+  
       console.log("Image uploaded successfully to:", imageUrl);
-
+  
       // Create metadata
       const metadata = {
         name: formInput.name,
@@ -194,9 +194,9 @@ const CreateItem = () => {
         image: imageUrl,
         attributes: [{ trait_type: "Collection", value: "numericsins" }],
       };
-
+  
       console.log("Created metadata:", metadata);
-
+  
       // Upload metadata to Pinata
       const metadataUrl = (await Promise.race([
         uploadJSONToPinata(metadata, `${formInput.name}_metadata.json`),
@@ -207,59 +207,89 @@ const CreateItem = () => {
           )
         ),
       ])) as string;
-
+  
       console.log("Metadata uploaded to:", metadataUrl);
-
+  
       setStatus("Minting NFT...");
-
+  
       // Prepare mint transaction
       const tx = prepareContractCall({
         contract: NFTContract,
         method: "function createToken(string memory tokenURI)",
         params: [metadataUrl],
       });
-
+  
       if (!account) {
-        return false;
+        setStatus("Error: Account not found");
+        return;
       }
-
+  
+      // Send and confirm mint transaction
       const mintReceipt = await sendAndConfirmTransaction({
         transaction: tx,
         account,
       });
-      // Send and confirm mint transaction
-      // const mintReceipt = await createItem(tx);
       console.log("Mint transaction receipt:", mintReceipt);
-
-      // Get the latest events to find the tokenId
+  
+      // Get the latest events to find the tokenId with retry mechanism
       const preparedEvent = prepareEvent({
         signature:
           "event MarketItemCreated(uint256 indexed tokenId, address indexed minter)",
       });
-
-      // Add a small delay to ensure event is indexed
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      const eventData = await getContractEvents({
-        contract: NFTContract,
-        events: [preparedEvent],
-      });
-
-      console.log("Event data:", eventData);
-
-      if (!eventData || eventData.length === 0) {
-        throw new Error("Could not retrieve token ID from mint transaction");
+  
+      setStatus("Fetching token ID...");
+  
+      // Retry fetching events up to 5 times with increasing delay
+      let tokenId: string | null = null;
+      const maxRetries = 5;
+      const initialDelay = 3000; // Start with 3 seconds
+      const delayIncrement = 2000; // Increase by 2 seconds each retry
+  
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const eventData = await getContractEvents({
+            contract: NFTContract,
+            events: [preparedEvent],
+            fromBlock: mintReceipt.blockNumber, // Start from the block of the mint transaction
+            toBlock: "latest", // Look up to the latest block
+          });
+  
+          console.log(`Attempt ${attempt} - Event data:`, eventData);
+  
+          if (eventData && eventData.length > 0) {
+            // Filter events to ensure we get the one from this transaction
+            const relevantEvent = eventData.find(
+              (event) =>
+                event.transactionHash === mintReceipt.transactionHash &&
+                event.args.minter.toLowerCase() === account.address.toLowerCase()
+            );
+  
+            if (relevantEvent) {
+              tokenId = relevantEvent.args.tokenId.toString();
+              console.log("Token ID:", tokenId);
+              break;
+            }
+          }
+  
+          if (attempt < maxRetries) {
+            const delay = initialDelay + (attempt - 1) * delayIncrement;
+            console.log(`Retrying after ${delay / 1000} seconds...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        } catch (error: any) {
+          console.error(`Attempt ${attempt} - Error fetching events:`, error);
+        }
       }
-
-      let length = eventData.length; // Get the last event
-      console.log("Event data length:", length);
-
-      const tokenId = eventData[length-1].args.tokenId.toString();
-      console.log("Token ID:", tokenId);
-
+  
+      if (!tokenId) {
+        throw new Error(
+          "Could not retrieve token ID after multiple attempts. Please try again later."
+        );
+      }
+  
       setStatus("NFT minted! Listing on marketplace...");
-
-      // ----------------------------------------------------
+  
+      // Prepare marketplace listing transaction
       const transaction = prepareContractCall({
         contract: NFTMarketplace,
         method:
@@ -267,20 +297,14 @@ const CreateItem = () => {
         params: [NFTContract.address, BigInt(tokenId), toWei(formInput.price)],
         value: toWei("0.025"),
       });
-
-      if (!account) {
-        return false;
-      }
-
+  
       await sendAndConfirmTransaction({
         transaction,
         account,
       });
-      // const marketplaceReceipt = await createItem(transaction);
-      // console.log("Marketplace listing receipt:", marketplaceReceipt);
-
+  
       setStatus("NFT created and listed successfully!");
-
+  
       // Reset form
       setFormInput({
         name: "",
@@ -289,7 +313,7 @@ const CreateItem = () => {
         image: null,
       });
       setFileUrl(null);
-
+  
       // Redirect after a short delay
       setTimeout(() => {
         router.push("/");
