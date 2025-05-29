@@ -25,12 +25,8 @@ import {
 } from "thirdweb";
 import { client } from "../client";
 
-// Pinata configuration
-// const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
-
-const PINATA_API_Key="52297ef86d10950d61bc"
-const PINATA_SECRET_API_KEY="271d5e1e42b7487d263a05348620975f75bb04b3897e11d578ee4caff724c076"
-const PINATA_JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI1MDFlZmM2OS01OTRhLTQyMGUtOWVhYS0wMDVlNWI5MjQyNjMiLCJlbWFpbCI6InNvaGFpbC5zb2hhaWxpc2hhcUBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiNTIyOTdlZjg2ZDEwOTUwZDYxYmMiLCJzY29wZWRLZXlTZWNyZXQiOiIyNzFkNWUxZTQyYjc0ODdkMjYzYTA1MzQ4NjIwOTc1Zjc1YmIwNGIzODk3ZTExZDU3OGVlNGNhZmY3MjRjMDc2IiwiZXhwIjoxNzc5OTc4MjY2fQ.Q7f_pVArJ3aBG-vmARn2RqRHt0eXA9EhLbZ3RyA7p5I"
+// Pinata configuration - using environment variable
+const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
 
 const CreateItem = () => {
   const activeWallet = useActiveWallet();
@@ -50,7 +46,7 @@ const CreateItem = () => {
   // Upload file to Pinata
   async function uploadToPinata(file: File) {
     if (!PINATA_JWT) {
-      throw new Error("Pinata JWT is not defined");
+      throw new Error("Pinata JWT is not configured. Please check your environment variables.");
     }
     const formData = new FormData();
     formData.append("file", file);
@@ -89,6 +85,10 @@ const CreateItem = () => {
 
   // Upload JSON metadata to Pinata
   async function uploadJSONToPinata(jsonData: any, filename: string) {
+    if (!PINATA_JWT) {
+      throw new Error("Pinata JWT is not configured. Please check your environment variables.");
+    }
+    
     console.log("Uploading JSON to Pinata...");
     const response = await fetch(
       "https://api.pinata.cloud/pinning/pinJSONToIPFS",
@@ -150,7 +150,8 @@ const CreateItem = () => {
       return;
     }
     if (!PINATA_JWT) {
-      throw new Error("Pinata JWT is not defined");
+      setStatus("Error: Pinata JWT is not configured. Please check your environment variables.");
+      return;
     }
 
     // Validate price
@@ -433,7 +434,7 @@ const CreateItem = () => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0 IEP-3 3m3-3v12"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                         />
                       </svg>
                       <p className="text-foreground/70 text-center">
