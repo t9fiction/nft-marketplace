@@ -39,6 +39,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<"name" | "price" | "newest">("newest");
   const [priceFilter, setPriceFilter] = useState<"all" | "low" | "high">("all");
+  const [transactionPending, setTransactionPending] = useState(false);
+  const [purchasingNFT, setPurchasingNFT] = useState<NFTItem | null>(null);
   
   const activeWallet = useActiveWallet();
   const activeAccount = useActiveAccount();
@@ -168,7 +170,6 @@ export default function Home() {
     }
   }
 
-
   function buyOnClick(nft: NFTItem) {
     if (!activeAccount) {
       Swal.fire({
@@ -176,8 +177,8 @@ export default function Home() {
         text: "Please connect your wallet to purchase this NFT.",
         icon: "error",
         confirmButtonText: "OK",
-        confirmButtonColor: "#f87171", // Matches text-red-400
-        background: "rgba(255, 255, 255, 0.1)", // Matches bg-main/10
+        confirmButtonColor: "#f87171",
+        background: "rgba(255, 255, 255, 0.1)",
         backdrop: "rgba(0, 0, 0, 0.8)",
         customClass: {
           title: "text-foreground font-poppins text-2xl font-bold",
@@ -188,6 +189,10 @@ export default function Home() {
       });
       return;
     }
+
+    // Set loading state and show modal
+    setTransactionPending(true);
+    setPurchasingNFT(nft);
   
     const transaction = prepareContractCall({
       contract: NFTMarketplace,
@@ -200,17 +205,40 @@ export default function Home() {
     buyNFTTransaction(transaction, {
       onSuccess: () => {
         console.log("Purchase successful!");
+        setTransactionPending(false);
+        setPurchasingNFT(null);
+        
+        // Show success message
+        Swal.fire({
+          title: "Purchase Successful!",
+          text: `You have successfully purchased ${nft.name}`,
+          icon: "success",
+          confirmButtonText: "Awesome!",
+          confirmButtonColor: "#10b981",
+          background: "rgba(255, 255, 255, 0.1)",
+          backdrop: "rgba(0, 0, 0, 0.8)",
+          customClass: {
+            title: "text-foreground font-poppins text-2xl font-bold",
+            htmlContainer: "text-foreground/70 font-inter text-lg",
+            popup: "backdrop-blur-lg rounded-2xl border border-primary/20",
+            confirmButton: "bg-green-500 text-white font-poppins rounded-xl px-6 py-2",
+          },
+        });
+        
         loadNFTs(); // Reload NFTs after successful purchase
       },
       onError: (error) => {
         console.error("Purchase failed:", error);
+        setTransactionPending(false);
+        setPurchasingNFT(null);
+        
         Swal.fire({
           title: "Purchase Failed",
           text: "Failed to purchase NFT. Please check your funds or try again later.",
           icon: "error",
           confirmButtonText: "OK",
-          confirmButtonColor: "#f87171", // Matches text-red-400
-          background: "rgba(255, 255, 255, 0.1)", // Matches bg-main/10
+          confirmButtonColor: "#f87171",
+          background: "rgba(255, 255, 255, 0.1)",
           backdrop: "rgba(0, 0, 0, 0.8)",
           customClass: {
             title: "text-foreground font-poppins text-2xl font-bold",
@@ -273,6 +301,97 @@ export default function Home() {
         >
           Next
         </button>
+      </div>
+    );
+  };
+
+  // Transaction Pending Modal
+  const TransactionModal = () => {
+    if (!transactionPending || !purchasingNFT) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="bg-main rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-primary/20">
+          {/* Loading Animation */}
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-primary/20 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          </div>
+
+          {/* NFT Info */}
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-lg overflow-hidden bg-background/50">
+              {purchasingNFT.image ? (
+                <img 
+                  src={purchasingNFT.image} 
+                  alt={purchasingNFT.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2 font-poppins">
+              {purchasingNFT.name}
+            </h3>
+            <p className="text-foreground/60 text-sm mb-2 font-inter">
+              Token #{purchasingNFT.tokenId}
+            </p>
+            <p className="text-lg font-semibold text-primary font-poppins">
+              {parseFloat(toEther(BigInt(purchasingNFT.price))).toFixed(4)} ETH
+            </p>
+          </div>
+
+          {/* Status */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-foreground mb-2 font-poppins">
+              Processing Transaction
+            </h2>
+            <p className="text-foreground/70 font-inter">
+              Please confirm the transaction in your wallet and wait for it to be processed on the blockchain.
+            </p>
+          </div>
+
+          {/* Steps */}
+          <div className="mt-6 space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-foreground/70 text-sm font-inter">Transaction initiated</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 rounded-full border-2 border-primary animate-pulse">
+                <div className="w-2 h-2 bg-primary rounded-full mx-auto mt-1"></div>
+              </div>
+              <span className="text-foreground font-inter text-sm">Waiting for confirmation...</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6 rounded-full border-2 border-foreground/20"></div>
+              <span className="text-foreground/50 text-sm font-inter">Transaction complete</span>
+            </div>
+          </div>
+
+          {/* Warning */}
+          <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.098 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <p className="text-yellow-500 text-sm font-inter">
+                Do not close this window or refresh the page during the transaction.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -385,6 +504,8 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {paginatedNFTs.map((nft, i) => {
               const priceInEth = toEther(BigInt(nft.price));
+              const isCurrentlyPurchasing = transactionPending && purchasingNFT?.itemId === nft.itemId;
+              
               return (
                 <div key={`${nft.itemId}-${i}`} className="bg-main rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   {/* Image Container with Fixed Aspect Ratio */}
@@ -410,7 +531,7 @@ export default function Home() {
                     {/* Status Badge */}
                     <div className="absolute top-3 right-3">
                       <span className="bg-secondary text-white px-2 py-1 rounded-full text-xs font-medium">
-                        Available
+                        {isCurrentlyPurchasing ? "Processing..." : "Available"}
                       </span>
                     </div>
                   </div>
@@ -445,9 +566,25 @@ export default function Home() {
                       
                       <button
                         onClick={() => buyOnClick(nft)}
-                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary/90 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 font-inter"
+                        disabled={transactionPending}
+                        className={`w-full font-bold py-3 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 font-inter ${
+                          transactionPending
+                            ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                            : isCurrentlyPurchasing
+                            ? "bg-yellow-500 text-white"
+                            : "bg-primary text-white hover:bg-primary/90 transform hover:scale-105"
+                        }`}
                       >
-                        Buy Now
+                        {isCurrentlyPurchasing ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <span>Processing...</span>
+                          </div>
+                        ) : transactionPending ? (
+                          "Please Wait..."
+                        ) : (
+                          "Buy Now"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -460,6 +597,9 @@ export default function Home() {
         {/* Pagination */}
         {renderPagination()}
       </div>
+
+      {/* Transaction Modal */}
+      <TransactionModal />
     </div>
   );
 }

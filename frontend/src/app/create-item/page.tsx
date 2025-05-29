@@ -24,6 +24,7 @@ import {
   sendAndConfirmTransaction,
 } from "thirdweb";
 import { client } from "../client";
+import Swal from "sweetalert2";
 
 // Pinata configuration - using environment variable
 const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
@@ -42,8 +43,43 @@ const CreateItem = () => {
     image: null as File | null,
   });
   const [status, setStatus] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Upload file to Pinata
+  // Show loading modal with SweetAlert2
+  const showLoadingModal = (title: string, text: string) => {
+    Swal.fire({
+      title: title,
+      text: text,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+  };
+
+  // Show success modal
+  const showSuccessModal = (title: string, text: string) => {
+    Swal.fire({
+      icon: 'success',
+      title: title,
+      text: text,
+      confirmButtonText: 'Awesome!',
+      confirmButtonColor: '#10B981',
+    });
+  };
+
+  // Show error modal
+  const showErrorModal = (title: string, text: string) => {
+    Swal.fire({
+      icon: 'error',
+      title: title,
+      text: text,
+      confirmButtonText: 'Try Again',
+      confirmButtonColor: '#EF4444',
+    });
+  };
   async function uploadToPinata(file: File) {
     if (!PINATA_JWT) {
       throw new Error("Pinata JWT is not configured. Please check your environment variables.");
@@ -146,11 +182,11 @@ const CreateItem = () => {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formInput.image || !account) {
-      setStatus("Please select an image and connect your wallet");
+      showErrorModal("Missing Information", "Please select an image and connect your wallet");
       return;
     }
     if (!PINATA_JWT) {
-      setStatus("Error: Pinata JWT is not configured. Please check your environment variables.");
+      showErrorModal("Configuration Error", "Pinata JWT is not configured. Please check your environment variables.");
       return;
     }
 
@@ -160,11 +196,12 @@ const CreateItem = () => {
       isNaN(Number(formInput.price)) ||
       Number(formInput.price) <= 0
     ) {
-      setStatus("Please enter a valid price greater than 0");
+      showErrorModal("Invalid Price", "Please enter a valid price greater than 0");
       return;
     }
 
-    setStatus("Uploading to Pinata...");
+    setIsProcessing(true);
+    showLoadingModal("Uploading to IPFS", "Uploading your image to IPFS...");
 
     try {
       console.log("Starting upload process...");
@@ -187,6 +224,9 @@ const CreateItem = () => {
       ])) as string;
 
       console.log("Image uploaded successfully to:", imageUrl);
+
+      // Update loading modal for metadata upload
+      showLoadingModal("Creating Metadata", "Uploading NFT metadata to IPFS...");
 
       // Create metadata
       const metadata = {
@@ -211,7 +251,8 @@ const CreateItem = () => {
 
       console.log("Metadata uploaded to:", metadataUrl);
 
-      setStatus("Minting NFT...");
+      // Update loading modal for minting
+      showLoadingModal("Minting NFT", "Creating your NFT on the blockchain...");
 
       // Prepare mint transaction
       const tx = prepareContractCall({
@@ -221,8 +262,7 @@ const CreateItem = () => {
       });
 
       if (!account) {
-        setStatus("Error: Account not found");
-        return;
+        throw new Error("Account not found");
       }
 
       // Send and confirm mint transaction
@@ -238,7 +278,7 @@ const CreateItem = () => {
           "event MarketItemCreated(uint256 indexed tokenId, address indexed minter)",
       });
 
-      setStatus("Fetching token ID...");
+      showLoadingModal("Processing", "Fetching token ID from blockchain...");
 
       // Retry fetching events up to 5 times with increasing delay
       let tokenId: string | null = null;
@@ -289,7 +329,7 @@ const CreateItem = () => {
         );
       }
 
-      setStatus("NFT minted! Listing on marketplace...");
+      showLoadingModal("Listing on Marketplace", "Listing your NFT on the marketplace...");
 
       // Prepare marketplace listing transaction
       const transaction = prepareContractCall({
@@ -305,7 +345,9 @@ const CreateItem = () => {
         account,
       });
 
-      setStatus("NFT created and listed successfully!");
+      // Close loading modal and show success
+      Swal.close();
+      showSuccessModal("Success!", "Your NFT has been created and listed successfully!");
 
       // Reset form
       setFormInput({
@@ -315,14 +357,17 @@ const CreateItem = () => {
         image: null,
       });
       setFileUrl(null);
+      setIsProcessing(false);
 
       // Redirect after a short delay
       setTimeout(() => {
         router.push("/");
-      }, 2000);
+      }, 3000);
     } catch (error: any) {
       console.error("Error creating NFT:", error);
-      setStatus(`Error: ${error.message || "Failed to create NFT"}`);
+      Swal.close();
+      showErrorModal("Transaction Failed", error.message || "Failed to create NFT");
+      setIsProcessing(false);
     }
   }
 
@@ -357,11 +402,12 @@ const CreateItem = () => {
                   </label>
                   <input
                     placeholder="Enter your NFT name"
-                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter"
+                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter disabled:opacity-50 disabled:cursor-not-allowed"
                     value={formInput.name}
                     onChange={(e) =>
                       setFormInput({ ...formInput, name: e.target.value })
                     }
+                    disabled={isProcessing}
                     required
                   />
                 </div>
@@ -373,7 +419,7 @@ const CreateItem = () => {
                   </label>
                   <textarea
                     placeholder="Describe your NFT in detail"
-                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter resize-none h-24"
+                    className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter resize-none h-24 disabled:opacity-50 disabled:cursor-not-allowed"
                     value={formInput.description}
                     onChange={(e) =>
                       setFormInput({
@@ -381,6 +427,7 @@ const CreateItem = () => {
                         description: e.target.value,
                       })
                     }
+                    disabled={isProcessing}
                     required
                   />
                 </div>
@@ -393,7 +440,7 @@ const CreateItem = () => {
                   <div className="relative">
                     <input
                       placeholder="0.00"
-                      className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter pr-12"
+                      className="w-full px-4 py-3 bg-background/50 border border-primary/30 rounded-xl text-gray-900 placeholder-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 font-inter pr-12 disabled:opacity-50 disabled:cursor-not-allowed"
                       value={formInput.price}
                       onChange={(e) =>
                         setFormInput({ ...formInput, price: e.target.value })
@@ -401,6 +448,7 @@ const CreateItem = () => {
                       type="number"
                       step="0.01"
                       min="0.01"
+                      disabled={isProcessing}
                       required
                     />
                     <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-foreground/60 font-semibold">
@@ -418,12 +466,13 @@ const CreateItem = () => {
                     <input
                       type="file"
                       name="Asset"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
                       onChange={onChange}
                       accept="image/*"
+                      disabled={isProcessing}
                       required
                     />
-                    <div className="flex flex-col items-center justify-center px-6 py-8 border-2 border-dashed border-primary/40 rounded-xl bg-background/30 hover:bg-background/50 transition-all duration-200">
+                    <div className={`flex flex-col items-center justify-center px-6 py-8 border-2 border-dashed border-primary/40 rounded-xl bg-background/30 hover:bg-background/50 transition-all duration-200 ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}>
                       <svg
                         className="w-10 h-10 text-primary mb-3"
                         fill="none"
@@ -454,12 +503,9 @@ const CreateItem = () => {
                 <button
                   type="submit"
                   className="w-full bg-gradient-to-r from-primary to-secondary text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none font-poppins text-lg"
-                  disabled={
-                    status.includes("Uploading") || status.includes("Minting")
-                  }
+                  disabled={isProcessing}
                 >
-                  {status.includes("Uploading") ||
-                  status.includes("Minting") ? (
+                  {isProcessing ? (
                     <div className="flex items-center justify-center space-x-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                       <span>Processing...</span>
@@ -470,22 +516,7 @@ const CreateItem = () => {
                 </button>
               </form>
 
-              {/* Status Message */}
-              {status && (
-                <div className="mt-6 p-4 rounded-xl text-center">
-                  <p
-                    className={`font-semibold ${
-                      status.includes("Error")
-                        ? "text-red-400 bg-red-400/10 border border-red-400/20"
-                        : status.includes("successfully")
-                        ? "text-green-400 bg-green-400/10 border border-green-400/20"
-                        : "text-primary bg-primary/10 border border-primary/20"
-                    } p-3 rounded-lg font-inter`}
-                  >
-                    {status}
-                  </p>
-                </div>
-              )}
+              {/* Remove old status message section since we're using SweetAlert2 */}
             </div>
 
             {/* Preview Section */}
